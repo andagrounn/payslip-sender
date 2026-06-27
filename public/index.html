@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payslip Sender</title>
+  <link rel="stylesheet" href="style.css?v=3" />
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="8" fill="#2563eb"/>
+          <path d="M8 10h16M8 14h10M8 18h12M8 22h8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="24" cy="22" r="5" fill="#10b981"/>
+          <path d="M21.5 22l1.5 1.5 3-3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Payslip Sender</span>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-ghost" id="smtpBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          SMTP Settings
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Step 1: Upload -->
+    <section class="card" id="uploadSection">
+      <div class="card-header">
+        <span class="step-badge">1</span>
+        <h2>Upload Consolidated PDF</h2>
+      </div>
+      <div class="split-options">
+        <label>Payslips per page:</label>
+        <div class="split-btns">
+          <button class="split-btn" data-val="1">1 per page</button>
+          <button class="split-btn active" data-val="3">3 per page</button>
+          <button class="split-btn" data-val="2">2 per page</button>
+          <button class="split-btn" data-val="4">4 per page</button>
+        </div>
+        <span class="split-hint" id="splitHint">Each page will be split into 3 equal sections</span>
+      </div>
+
+      <div class="drop-zone" id="dropZone">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <p>Drag & drop your PDF here, or</p>
+        <label class="btn btn-primary" for="pdfInput">Choose PDF File</label>
+        <input type="file" id="pdfInput" accept=".pdf" hidden />
+        <p class="hint">Supports multi-page PDFs up to 50MB. Each page = one payslip.</p>
+      </div>
+      <div class="upload-progress hidden" id="uploadProgress">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <span id="progressText">Processing PDF...</span>
+      </div>
+    </section>
+
+    <!-- Step 2: Map Employees -->
+    <section class="card hidden" id="mappingSection">
+      <div class="card-header">
+        <span class="step-badge">2</span>
+        <h2>Map Employees to Emails</h2>
+        <div class="card-header-actions">
+          <label class="btn btn-ghost btn-sm" for="csvInput">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import CSV
+          </label>
+          <input type="file" id="csvInput" accept=".csv" hidden />
+          <button class="btn btn-ghost btn-sm" id="selectAllBtn">Select All</button>
+          <button class="btn btn-ghost btn-sm" id="deselectAllBtn">Deselect All</button>
+        </div>
+      </div>
+
+      <div class="file-info" id="fileInfo"></div>
+
+      <div class="csv-hint">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Tip: Import a CSV with <strong>Name</strong> and <strong>Email</strong> columns to auto-fill emails, or enter them manually below.
+      </div>
+
+      <div class="table-wrapper">
+        <table id="payslipTable">
+          <thead>
+            <tr>
+              <th style="width:40px">
+                <input type="checkbox" id="masterCheck" checked />
+              </th>
+              <th style="width:60px">Page</th>
+              <th>Employee Name</th>
+              <th style="width:130px">ID Number</th>
+              <th>Email Address</th>
+              <th style="width:160px">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div id="paginationContainer"></div>
+
+      <div class="section-footer">
+        <span id="selectedCount" class="count-badge"></span>
+        <button class="btn btn-primary" id="sendBtn" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Send Payslips
+        </button>
+      </div>
+    </section>
+
+    <!-- Step 3: Results -->
+    <section class="card hidden" id="resultsSection">
+      <div class="card-header">
+        <span class="step-badge">3</span>
+        <h2>Send Results</h2>
+      </div>
+      <div class="results-summary" id="resultsSummary"></div>
+      <div id="resultsList"></div>
+      <div class="section-footer">
+        <button class="btn btn-ghost" id="resetBtn">Start Over</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- SMTP Modal -->
+  <div class="modal-overlay hidden" id="smtpModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>SMTP Email Settings</h3>
+        <button class="modal-close" id="smtpClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>SMTP Provider</label>
+            <div class="preset-buttons">
+              <button class="preset-btn" data-preset="gmail">Gmail</button>
+              <button class="preset-btn" data-preset="outlook">Outlook</button>
+              <button class="preset-btn" data-preset="yahoo">Yahoo</button>
+              <button class="preset-btn" data-preset="sendgrid">SendGrid</button>
+              <button class="preset-btn" data-preset="custom">Custom</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="smtpHost">SMTP Host</label>
+            <input type="text" id="smtpHost" placeholder="smtp.gmail.com" />
+          </div>
+          <div class="form-group">
+            <label for="smtpPort">Port</label>
+            <input type="number" id="smtpPort" placeholder="587" value="587" />
+          </div>
+          <div class="form-group">
+            <label for="smtpUser">Username / Email</label>
+            <input type="email" id="smtpUser" placeholder="you@example.com" />
+          </div>
+          <div class="form-group">
+            <label for="smtpPass">Password / App Password</label>
+            <input type="password" id="smtpPass" placeholder="••••••••••••" />
+          </div>
+          <div class="form-group">
+            <label for="smtpFrom">From Email (optional)</label>
+            <input type="email" id="smtpFrom" placeholder="hr@company.com" />
+          </div>
+          <div class="form-group">
+            <label for="smtpSenderName">Sender Name</label>
+            <input type="text" id="smtpSenderName" placeholder="HR Department" value="HR Department" />
+          </div>
+        </div>
+
+        <details class="email-template">
+          <summary>Email Template (optional)</summary>
+          <div class="form-grid" style="margin-top:12px">
+            <div class="form-group full">
+              <label for="emailSubject">Subject</label>
+              <input type="text" id="emailSubject" placeholder="Your Payslip {{period}}" value="Your Payslip {{period}}" />
+            </div>
+            <div class="form-group full">
+              <label for="emailBody">Body (HTML supported)</label>
+              <textarea id="emailBody" rows="6" placeholder="Use {{name}}, {{period}}, {{sender_name}} as variables">&#60;p&#62;Dear {{name}},&#60;/p&#62;
+&#60;p&#62;Please find attached your payslip{{period_text}}.&#60;/p&#62;
+&#60;p&#62;If you have any questions, please contact the HR department.&#60;/p&#62;
+&#60;br&#62;
+&#60;p&#62;Regards,&#60;br&#62;&#60;strong&#62;{{sender_name}}&#60;/strong&#62;&#60;/p&#62;</textarea>
+            </div>
+          </div>
+        </details>
+
+        <div class="smtp-status hidden" id="smtpStatus"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="testSmtpBtn">Test Connection</button>
+        <button class="btn btn-primary" id="saveSmtpBtn">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview Modal -->
+  <div class="modal-overlay hidden" id="previewModal">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <h3 id="previewTitle">Payslip Preview</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn btn-ghost btn-sm" id="previewToggle" data-mode="generated">View Original Scan</button>
+          <button class="modal-close" id="previewClose">&times;</button>
+        </div>
+      </div>
+      <div class="modal-body" style="padding:0; flex:1; overflow:hidden;">
+        <iframe id="previewFrame" style="width:100%; height:100%; border:none;"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sending Overlay -->
+  <div class="modal-overlay hidden" id="sendingOverlay">
+    <div class="sending-card">
+      <div class="spinner"></div>
+      <h3>Sending Payslips...</h3>
+      <p id="sendingProgress">Preparing...</p>
+    </div>
+  </div>
+
+  <script src="app.js?v=3"></script>
+</body>
+</html>
