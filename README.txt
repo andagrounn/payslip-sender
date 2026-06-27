@@ -18,16 +18,30 @@ To verify it worked, open Command Prompt and type:
 Both should print version numbers.
 
 
-STEP 2: Launch Payslip Sender
-------------------------------
-1. Unzip the PayslipSender.zip folder
-2. Open the Payslip folder
-3. Double-click PayslipSender.bat
+STEP 2: Install Git (for auto-updates)
+----------------------------------------
+1. Go to https://git-scm.com/download/win
+2. Download and run the installer
+3. Click Next through the wizard, keep all defaults
+4. Click Install, then Finish
+
+
+STEP 3: Clone the App
+-----------------------
+1. Open Command Prompt
+2. Navigate to where you want the app:
+      cd Desktop
+3. Run:
+      git clone https://github.com/andagrounn/payslip-sender.git
+4. Open the payslip-sender folder
+5. Double-click PayslipSender.bat
    - First run will install dependencies (takes ~1 minute)
    - The app will open automatically in your browser
 
 For future launches, you can use PayslipSender.vbs instead
 for a clean launch with no terminal window.
+
+The app auto-updates from GitHub every time you launch it.
 
 
 STEP 3: Using the App

@@ -871,15 +871,18 @@ app.post('/api/send', async (req, res) => {
     return res.status(400).json({ error: 'Incomplete SMTP config' });
   if (!recipients?.length) return res.status(400).json({ error: 'No recipients' });
 
-  const transport = nodemailer.createTransport({
+  const mkTransport = () => nodemailer.createTransport({
     host: smtp.host, port: parseInt(smtp.port) || 587,
     secure: smtp.secure === true || parseInt(smtp.port) === 465,
     auth: { user: smtp.user, pass: smtp.pass },
     tls: { rejectUnauthorized: false },
+    pool: false,  // one connection per message to avoid concurrency limits
   });
-  try { await transport.verify(); }
+
+  try { const t = mkTransport(); await t.verify(); t.close(); }
   catch (err) { return res.status(400).json({ error: 'SMTP failed: ' + err.message }); }
 
+  const delay = (ms) => new Promise(r => setTimeout(r, ms));
   const results = [];
   for (const r of recipients.filter(r => r.include && r.email)) {
     const p = session.payslips[r.pageId];
@@ -896,6 +899,7 @@ app.post('/api/send', async (req, res) => {
       .replace(/{{sender_name}}/g, smtp.senderName || 'HR Department');
 
     try {
+      const transport = mkTransport();
       await transport.sendMail({
         from: `"${smtp.senderName || 'HR Department'}" <${smtp.from || smtp.user}>`,
         to:   r.email,
@@ -906,10 +910,15 @@ app.post('/api/send', async (req, res) => {
           contentType: 'application/pdf',
         }],
       });
+      transport.close();
       results.push({ pageId: r.pageId, name, email: r.email, status: 'sent' });
+      console.log(`  ✉ Sent to ${r.email} (${results.length}/${recipients.length})`);
     } catch (err) {
       results.push({ pageId: r.pageId, name, email: r.email, status: 'failed', message: err.message });
+      console.warn(`  ✗ Failed ${r.email}: ${err.message}`);
     }
+    // Throttle: wait 1.5s between sends to avoid SMTP rate limits
+    await delay(1500);
   }
 
   res.json({

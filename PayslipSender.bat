@@ -11,11 +11,28 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-:: Install dependencies if needed
+:: Check for updates from GitHub
+where git >nul 2>nul
+if %errorlevel% equ 0 (
+    if exist ".git" (
+        echo Checking for updates...
+        git pull origin main 2>nul
+        if %errorlevel% equ 0 (
+            echo Up to date.
+        ) else (
+            echo Could not check for updates. Continuing...
+        )
+        echo.
+    )
+)
+
+:: Install or update dependencies
 if not exist "node_modules" (
     echo Installing dependencies...
     npm install --production
     echo.
+) else (
+    npm install --production 2>nul
 )
 
 echo Starting Payslip Sender...
