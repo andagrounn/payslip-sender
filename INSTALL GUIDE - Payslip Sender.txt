@@ -37,14 +37,38 @@ STEP 1: Install Node.js
    7. RESTART your computer.
 
 
-STEP 2: Get the App
+STEP 2: Install Git
 ================================================================
 
-   The IT Department will provide you with a folder called
-   "payslip-sender". Copy this folder to your Desktop.
+   1. Go to:  https://git-scm.com/download/win
+
+   2. The download should start automatically.
+
+   3. DOUBLE-CLICK the downloaded file.
+
+   4. Click "Next" on EVERY screen. Do not change anything.
+      Then click "Install", then "Finish".
 
 
-STEP 3: Open the App for the First Time
+STEP 3: Download the App
+================================================================
+
+   1. Press the Windows key, type "cmd", press Enter
+
+   2. Type this EXACTLY and press Enter:
+
+         cd Desktop
+
+   3. Type this EXACTLY and press Enter:
+
+         git clone https://github.com/andagrounn/payslip-sender.git
+
+   4. Wait until you see "done", then type "exit"
+
+   5. A folder called "payslip-sender" is now on your Desktop
+
+
+STEP 4: Open the App for the First Time
 ================================================================
 
    1. Open the "payslip-sender" folder on your Desktop
@@ -64,7 +88,7 @@ STEP 3: Open the App for the First Time
    That window keeps the app running.
 
 
-STEP 4: Create a Desktop Shortcut
+STEP 5: Create a Desktop Shortcut
 ================================================================
 
    1. Open the "payslip-sender" folder
