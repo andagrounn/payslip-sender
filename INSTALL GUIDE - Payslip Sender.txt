@@ -1,0 +1,149 @@
+================================================================
+   PAYSLIP SENDER - Installation Guide
+   Quest Security Services
+================================================================
+
+   Time needed: About 10-15 minutes
+   You will need: Internet connection
+
+
+STEP 1: Install Node.js
+================================================================
+
+   1. Open your web browser (Chrome, Edge, etc.)
+
+   2. Go to:  https://nodejs.org
+
+   3. Click the big green button on the LEFT that says "LTS"
+
+   4. A file will download. Go to your Downloads folder
+      and DOUBLE-CLICK it to open the installer.
+
+   5. Follow the installer:
+      - Click "Next" on each screen
+      - Accept the license agreement
+      - Leave all settings as-is
+      - IMPORTANT: When you see "Tools for Native Modules",
+        CHECK the box that says "Automatically install
+        the necessary tools"
+      - Click "Install"
+      - If Windows asks "Do you want to allow this app to
+        make changes?" click "Yes"
+      - Click "Finish"
+
+   6. A black window may open to install extra tools.
+      Let it finish on its own. This can take a few minutes.
+
+   7. RESTART your computer.
+
+
+STEP 2: Get the App
+================================================================
+
+   The IT Department will provide you with a folder called
+   "payslip-sender". Copy this folder to your Desktop.
+
+
+STEP 3: Open the App for the First Time
+================================================================
+
+   1. Open the "payslip-sender" folder on your Desktop
+
+   2. DOUBLE-CLICK "PayslipSender.bat"
+
+      If Windows shows "Windows protected your PC":
+      - Click "More info"
+      - Click "Run anyway"
+
+   3. A black window will appear. The first time it runs,
+      it will install some extra files (1-2 minutes).
+
+   4. The app will open automatically in your browser.
+
+   DO NOT close the black window while using the app.
+   That window keeps the app running.
+
+
+STEP 4: Create a Desktop Shortcut
+================================================================
+
+   1. Open the "payslip-sender" folder
+
+   2. RIGHT-CLICK on "PayslipSender.vbs"
+
+   3. Click "Create shortcut"
+
+   4. Drag the shortcut to your Desktop
+
+   5. Rename it to "Payslip Sender" if you like
+
+   From now on, DOUBLE-CLICK this shortcut to open the app.
+   It opens cleanly without showing the black window.
+
+
+================================================================
+
+
+HOW TO USE
+================================================================
+
+   1. Double-click your "Payslip Sender" shortcut
+
+   2. Select how many payslips are on each PDF page
+      (1, 2, 3, or 4)
+
+   3. Click "Upload PDF" and choose your payslip file
+
+   4. Wait for it to process
+
+   5. Review the list of employees:
+      - Check names and email addresses are correct
+      - Click on any name or email to edit it
+      - Uncheck anyone you do NOT want to email
+
+   6. Click "SMTP Settings" (top right) and enter:
+
+         Host:        mail.questsec.com
+         Port:        587
+         Username:    (your email address)
+         Password:    (your email password)
+         Sender Name: Quest Security Services
+
+      Click "Test Connection" to make sure it works.
+      These settings are saved so you only enter them once.
+
+   7. Click "Send Payslips" and wait for completion
+
+
+================================================================
+
+
+TROUBLESHOOTING
+================================================================
+
+   App won't start / "Node.js not installed"
+   --> Redo Step 1 and restart your computer
+
+   Browser doesn't open
+   --> Open your browser and go to: http://localhost:3000
+
+   "Port already in use"
+   --> The app is already running. Look for another black
+       window in your taskbar, close it, and try again.
+
+   Emails not sending
+   --> Click "SMTP Settings", check your details, and
+       click "Test Connection"
+
+   Windows Defender warning
+   --> Click "More info" then "Run anyway"
+
+
+================================================================
+
+   Updates are handled automatically by IT.
+   For help, contact the IT Department.
+
+================================================================
+   Quest Security Services
+================================================================

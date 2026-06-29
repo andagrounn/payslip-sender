@@ -6,6 +6,7 @@ let rowState      = {};           // { [id]: { name, idNumber, email, include } 
 let currentPage   = 1;
 let rowsPerPage   = 10;
 let sectionsPerPage = 3;
+let searchQuery   = '';
 let smtpSettings  = JSON.parse(localStorage.getItem('smtpSettings')  || '{}');
 let emailTemplate = JSON.parse(localStorage.getItem('emailTemplate') || '{}');
 
@@ -108,6 +109,35 @@ function initTable(data, filename, total, totalPages, sections) {
   renderTable();
 }
 
+// ─── Search ──────────────────────────────────────────────────────────────────
+const searchInput = document.getElementById('searchInput');
+const searchClear = document.getElementById('searchClear');
+
+searchInput.addEventListener('input', e => {
+  searchQuery = e.target.value.trim().toLowerCase();
+  searchClear.classList.toggle('hidden', !searchQuery);
+  currentPage = 1;
+  renderTable();
+});
+
+searchClear.addEventListener('click', () => {
+  searchInput.value = '';
+  searchQuery = '';
+  searchClear.classList.add('hidden');
+  currentPage = 1;
+  renderTable();
+});
+
+function getFilteredPayslips() {
+  if (!searchQuery) return payslips;
+  return payslips.filter(p => {
+    const st = rowState[p.id];
+    return (st.name || '').toLowerCase().includes(searchQuery)
+        || (st.idNumber || '').toLowerCase().includes(searchQuery)
+        || (st.email || '').toLowerCase().includes(searchQuery);
+  });
+}
+
 // ─── Table Render (paginated) ─────────────────────────────────────────────────
 function renderTable() {
   // Persist any unsaved edits in the DOM before re-rendering
@@ -115,9 +145,10 @@ function renderTable() {
 
   tableBody.innerHTML = '';
 
+  const filtered = getFilteredPayslips();
   const start   = (currentPage - 1) * rowsPerPage;
-  const end     = Math.min(start + rowsPerPage, payslips.length);
-  const visible = payslips.slice(start, end);
+  const end     = Math.min(start + rowsPerPage, filtered.length);
+  const visible = filtered.slice(start, end);
 
   visible.forEach(p => {
     const st    = rowState[p.id];
@@ -196,7 +227,8 @@ function renderPagination() {
   const container = document.getElementById('paginationContainer');
   if (!container) return;
 
-  const totalPages = Math.ceil(payslips.length / rowsPerPage);
+  const filtered = getFilteredPayslips();
+  const totalPages = Math.ceil(filtered.length / rowsPerPage);
   if (totalPages <= 1) { container.innerHTML = ''; return; }
 
   const pages = buildPageNumbers(currentPage, totalPages);
@@ -220,7 +252,7 @@ function renderPagination() {
   container.querySelectorAll('.pg-btn[data-pg]').forEach(btn => {
     btn.addEventListener('click', () => {
       const pg = parseInt(btn.dataset.pg);
-      const max = Math.ceil(payslips.length / rowsPerPage);
+      const max = Math.ceil(getFilteredPayslips().length / rowsPerPage);
       if (pg < 1 || pg > max) return;
       currentPage = pg;
       renderTable();
@@ -566,6 +598,9 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   payslips  = [];
   rowState  = {};
   currentPage = 1;
+  searchQuery = '';
+  searchInput.value = '';
+  searchClear.classList.add('hidden');
   tableBody.innerHTML = '';
   const pc = document.getElementById('paginationContainer');
   if (pc) pc.innerHTML = '';
