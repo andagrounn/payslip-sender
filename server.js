@@ -172,7 +172,7 @@ function parsePayslip(rawText) {
 
     if (!result.id) {
       // Combined "ID: XXXX  NAME: Full Name" on one line
-      const m = line.match(/ID\s*[:\-]?\s*(\d+)\s+NAME\s*[:\-]?\s*([A-Za-z][A-Za-z'\-\s\.]+?)(?:NAME_STOP|$)/i);
+      const m = line.match(/ID\s*[:\-]?\s*(\d+)\s+NAME\s*[:\-]?\s*([A-Za-z][A-Za-z0-9'\-\s\.]+?)(?:NAME_STOP|$)/i);
       if (m) {
         result.id   = m[1].trim();
         result.name = cleanName(m[2]);
@@ -180,7 +180,7 @@ function parsePayslip(rawText) {
     }
     if (!result.id) {
       // Split "ID: XXXX  NAME: Full Name" using named anchor replacement
-      const combined = /ID\s*[:\-]?\s*(\d+)\s+NAME\s*[:\-]?\s*([A-Za-z][A-Za-z'\-\s\.]+?)(?=\s+(?:From\s+\d|\d{1,2}[\/\-]|Quest|SLIP|TRN|Date:)|$)/i;
+      const combined = /ID\s*[:\-]?\s*(\d+)\s+NAME\s*[:\-]?\s*([A-Za-z][A-Za-z0-9'\-\s\.]+?)(?=\s+(?:From\s+\d|\d{1,2}[\/\-]|Quest|SLIP|TRN|Date:)|$)/i;
       const m = line.match(combined);
       if (m) {
         result.id   = m[1].trim();
@@ -194,7 +194,7 @@ function parsePayslip(rawText) {
     }
     // Fallback: NAME only
     if (!result.name) {
-      const m = line.match(/\bNAME\s*[:\-]\s*([A-Za-z][A-Za-z'\-\s\.]+?)(?=\s+(?:From\s+\d|\d{1,2}[\/\-]|Quest|SLIP|TRN|Date:)|$)/i);
+      const m = line.match(/\bNAME\s*[:\-]\s*([A-Za-z][A-Za-z0-9'\-\s\.]+?)(?=\s+(?:From\s+\d|\d{1,2}[\/\-]|Quest|SLIP|TRN|Date:)|$)/i);
       if (m) result.name = cleanName(m[1]);
     }
 
@@ -222,66 +222,93 @@ function parsePayslip(rawText) {
   // ── Parse PAYMENTS and DEDUCTIONS ───────────────────────────
   //
   // Strategy:
-  //   1. Line-by-line: handle well-formed rows on a single line
-  //      "Base Pay  80.00  400.00  32,000.00  NIS  2,329.74"
+  //   1. Structural line-by-line walk of the table region.
+  //      Each line may hold a payment row (left column) and/or a
+  //      deduction row (right column), plus Gross/TOTAL/Net markers:
+  //        "Base Pay  80.00  400.00  32,000.00  NIS  2,329.74"
+  //        "Sick Leave  16,000.00  TOTAL  4,217.15"
+  //        "Gross $20,809.48  ED. Tax  454.17"
+  //      Lines with no numbers are description continuations of the
+  //      previous payment row (multi-line client names).
   //   2. Multiline fallback: OCR sometimes puts numbers on separate lines;
   //      search the full text block for each known description + 3 numbers
-  //   3. Deduction fallback: look for known deduction keywords + 1 amount
+  //   3. Deduction fallback: merge in any known deduction keyword + amount
+  //      that pass 1 missed
 
   const SKIP_TABLE = new Set(['description','hrs/dys/tsk','rate','amount',
     'payments','deductions','gross','total','year to date','net','ytd']);
 
-  // ── Pass 1: single-line rows ────────────────────────────────
-  for (const line of lines) {
+  // Deduction descriptions (right column) — distinguishes an amount-only
+  // deduction line from an amount-only payment line
+  const DED_KEYWORD = /^(NIS|NHT|ED\.?\s*Tax|Income\s*Tax|PAYE|Pension|Loan|Insurance|Union|Garnish)/i;
+
+  // ── Pass 1: structural table walk ───────────────────────────
+  // Table region: after the column-header line, up to the YTD block
+  const hdrIdx = lines.findIndex(l => /Description\s+Hrs|PAYMENTS\s+DEDUCTIONS/i.test(l));
+  const endIdx = lines.findIndex(l => /Year\s+to\s+Date/i.test(l) || /^NIS\s+NHT\b/i.test(l));
+  const region = lines.slice(hdrIdx >= 0 ? hdrIdx + 1 : 0,
+                             endIdx > hdrIdx ? endIdx : lines.length);
+
+  for (let line of region) {
     const lo = line.toLowerCase().trim();
     if (!lo || SKIP_TABLE.has(lo)) continue;
     if (/year to date|quest security|from\s+\d|^date\b|^slip|^trn\b|^id\b|^name\b/i.test(lo)) continue;
 
-    // Pull every number (with or without decimals, with or without commas)
-    const nums = [...line.matchAll(/([\d,]+(?:\.\d+)?)/g)]
-      .map(m => m[1].replace(/,/g, ''))
-      .filter(n => parseFloat(n) > 0);
+    // Capture + strip the Gross / TOTAL / Net markers so the deduction
+    // that may share the same line is still parsed
+    let m = line.match(/Gross\s+\$?([\d,]+\.\d{2})/i);
+    if (m) { if (!result.gross) result.gross = m[1]; line = line.replace(m[0], ' '); }
+    m = line.match(/TOTAL\s+\$?([\d,]+\.\d{2})/i);
+    if (m) { if (!result.totalDeductions) result.totalDeductions = m[1]; line = line.replace(m[0], ' '); }
+    m = line.match(/\bNet\s+\$?([\d,]+\.\d{2})/i);
+    if (m) { if (!result.net) result.net = m[1]; line = line.replace(m[0], ' '); }
+    line = line.trim();
+    if (!line) continue;
 
-    if (nums.length < 3) continue;  // payment rows need at least 3 numbers
-
-    const firstNumPos = line.search(/\d/);
-    if (firstNumPos < 2) continue;
-    const desc = line.slice(0, firstNumPos).trim().replace(/\s{2,}/g, ' ');
-    if (!desc || SKIP_TABLE.has(desc.toLowerCase())) continue;
-    if (/^(from|to|date|slip|trn|id|name|quest)/i.test(desc)) continue;
-
-    // Known deductions are handled separately — skip them here
-    if (/\b(NIS|NHT|ED\.?\s*Tax|Income\s*Tax)\b/i.test(desc) && nums.length < 3) continue;
-
-    // Payment row: first 3 nums = hrs, rate, amount
-    const already = result.payments.some(p => p.description.toLowerCase() === desc.toLowerCase());
-    if (!already) {
+    // Full payment row at the left: desc + hrs + rate + amount
+    const DESC = "[A-Za-z][A-Za-z0-9:'\\-\\.\\/&\\s]*?";
+    m = line.match(new RegExp(
+      `^(${DESC})\\s+([\\d,]+(?:\\.\\d+)?)\\s+([\\d,]+(?:\\.\\d+)?)\\s+([\\d,]+\\.\\d{2})`));
+    if (m && !DED_KEYWORD.test(m[1].trim())) {
       result.payments.push({
-        description: desc,
-        hrs:    fmt2(nums[0]),
-        rate:   fmt2(nums[1]),
-        amount: fmt2(nums[2]),
+        description: m[1].trim().replace(/\s{2,}/g, ' '),
+        hrs:    fmt2(m[2]),
+        rate:   fmt2(m[3]),
+        amount: fmt2(m[4]),
       });
+      line = line.slice(m[0].length).trim();
+    } else {
+      // Amount-only payment row (no hrs/rate), e.g. "Sick Leave 16,000.00".
+      // The amount must be the last token or be followed by a deduction.
+      m = line.match(new RegExp(
+        `^(${DESC})\\s+\\$?([\\d,]+\\.\\d{2})(?=\\s+(?:NIS|NHT|ED\\.?\\s*Tax|Income\\s*Tax)\\b|\\s*$)`, 'i'));
+      if (m && !DED_KEYWORD.test(m[1].trim())) {
+        result.payments.push({
+          description: m[1].trim().replace(/\s{2,}/g, ' '),
+          hrs:    '',
+          rate:   '',
+          amount: fmt2(m[2]),
+        });
+        line = line.slice(m[0].length).trim();
+      }
     }
 
-    // ── Inline deduction: text after the 3rd number may be a deduction ──
-    // e.g. "Base Pay  80.00  400.00  32,000.00  NIS  2,329.74"
-    //       ^^^^^^^^^^^^^^ payment ^^^^^^^^^^^^^^  ^^^ deduction ^^^
-    if (nums.length >= 4) {
-      // Find the text between the 3rd and 4th number
-      const thirdNumMatch = [...line.matchAll(/([\d,]+(?:\.\d+)?)/g)][2];
-      if (thirdNumMatch) {
-        const afterPayment = line.slice(thirdNumMatch.index + thirdNumMatch[0].length);
-        const dedMatch = afterPayment.match(/\s*(NIS|NHT|ED\.?\s*Tax|Income\s*Tax)\s+([\d,]+\.?\d*)/i);
-        if (dedMatch) {
-          const dedDesc = dedMatch[1].trim();
-          const dedAmt  = dedMatch[2].replace(/,/g, '');
-          const dedAlready = result.deductions.some(d => d.description.toLowerCase() === dedDesc.toLowerCase());
-          if (!dedAlready) {
-            result.deductions.push({ description: dedDesc, amount: fmt2(dedAmt) });
-          }
-        }
-      }
+    // Whatever remains (or the whole line, if no payment matched) is the
+    // right column: deduction desc + amount
+    m = line.match(/^\$?([A-Za-z][A-Za-z\.\s'\-]*?)\s+\$?([\d,]+\.\d{2})/);
+    if (m) {
+      result.deductions.push({ description: m[1].trim(), amount: fmt2(m[2]) });
+      continue;
+    }
+
+    // No numbers at all → continuation of the previous payment description
+    // (client names wrap over several lines, e.g. "CONDUENT: / BARNETT TECH / PARK 4")
+    if (result.payments.length &&
+        /^[A-Za-z]/.test(line) && !/\d+\.\d{2}/.test(line) && line.length <= 24 &&
+        !/^(PAYMENTS|DEDUCTIONS|Description|Year|Gross|TOTAL|Net)\b/i.test(line) &&
+        !DED_KEYWORD.test(line)) {
+      const last = result.payments[result.payments.length - 1];
+      last.description = `${last.description} ${line}`.replace(/\s{2,}/g, ' ').trim();
     }
   }
 
@@ -311,19 +338,23 @@ function parsePayslip(rawText) {
   }
 
   // ── Pass 3: deduction fallback ───────────────────────────────
-  // Only search lines ABOVE the YTD header to avoid matching YTD values
-  if (result.deductions.length === 0) {
+  // Merge in any known deduction that pass 1 missed (never drop what a
+  // longer deductions column already produced).
+  // Only search lines ABOVE the YTD header to avoid matching YTD values.
+  {
     const ytdHdrIdx = lines.findIndex(l =>
       /NIS.*NHT.*(?:Income Tax|ED\.?\s*Tax)/i.test(l));
     const searchLines = ytdHdrIdx > 0 ? lines.slice(0, ytdHdrIdx) : lines;
     const flat2 = searchLines.join(' ');
+    const norm  = s => String(s).toLowerCase().replace(/[^a-z]/g, '');
     const dedPatterns = [
-      { key: 'NIS',        re: /\bNIS\b\s+([\d,]+\.\d{2})/i },
-      { key: 'NHT',        re: /\bNHT\b\s+([\d,]+\.\d{2})/i },
-      { key: 'Income Tax', re: /Income\s*Tax\s+([\d,]+\.\d{2})/i },
-      { key: 'ED. Tax',    re: /ED\.?\s*Tax\s+([\d,]+\.\d{2})/i },
+      { key: 'NIS',        re: /\bNIS\b\s+\$?([\d,]+\.\d{2})/i },
+      { key: 'NHT',        re: /\bNHT\b\s+\$?([\d,]+\.\d{2})/i },
+      { key: 'Income Tax', re: /Income\s*Tax\s+\$?([\d,]+\.\d{2})/i },
+      { key: 'ED. Tax',    re: /ED\.?\s*Tax\s+\$?([\d,]+\.\d{2})/i },
     ];
     for (const { key, re } of dedPatterns) {
+      if (result.deductions.some(d => norm(d.description) === norm(key))) continue;
       const dm = flat2.match(re);
       if (dm) result.deductions.push({ description: key, amount: dm[1] });
     }
@@ -332,22 +363,24 @@ function parsePayslip(rawText) {
   // ── YTD row ──────────────────────────────────────────────────
   // Header varies: "NIS NHT Income Tax ED. Tax Gross" (5 cols)
   //            or: "NIS NHT ED. Tax Gross"            (4 cols)
+  //            or any subset, e.g. "Income Tax Gross" or just "Gross".
   // Values on the next line must be mapped by the actual header columns.
-  const ytdHeaderIdx = lines.findIndex(l =>
-    /NIS.*NHT.*(?:Income\s*Tax|ED\.?\s*Tax)/i.test(l)
-  );
+  // The header is the first line at/after the "Year to Date" anchor made up
+  // ONLY of YTD column labels.
+  const YTD_HDR_RE  = /^(?:\s*(?:NIS|NHT|Income\s*Tax|ED\.?\s*Tax|Gross))+\s*$/i;
+  const ytdAnchor   = lines.findIndex(l => /Year\s+to\s+Date/i.test(l));
+  let ytdHeaderIdx  = -1;
+  for (let i = Math.max(0, ytdAnchor); i < lines.length; i++) {
+    if (YTD_HDR_RE.test(lines[i])) { ytdHeaderIdx = i; break; }
+  }
   if (ytdHeaderIdx >= 0) {
     const hdr = lines[ytdHeaderIdx];
-    // Detect which columns are present in the header
-    const hasIncomeTax = /Income\s*Tax/i.test(hdr);
-    const hasEdTax     = /ED\.?\s*Tax/i.test(hdr);
-    const hasGross     = /Gross/i.test(hdr);
 
     // Build ordered column key list based on what's in the header
-    const colKeys = ['nis', 'nht'];
-    if (hasIncomeTax) colKeys.push('incomeTax');
-    if (hasEdTax)     colKeys.push('edTax');
-    if (hasGross)     colKeys.push('gross');
+    const labelOrder = [...hdr.matchAll(/NIS|NHT|Income\s*Tax|ED\.?\s*Tax|Gross/gi)]
+      .map(m => m[0].toLowerCase().replace(/[^a-z]/g, ''));
+    const keyMap  = { nis: 'nis', nht: 'nht', incometax: 'incomeTax', edtax: 'edTax', gross: 'gross' };
+    const colKeys = labelOrder.map(l => keyMap[l]).filter(Boolean);
 
     for (let offset = 1; offset <= 2 && ytdHeaderIdx + offset < lines.length; offset++) {
       const ytdLine = lines[ytdHeaderIdx + offset];
@@ -951,14 +984,18 @@ function defaultEmailBody() {
 }
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  const url = `http://localhost:${PORT}`;
-  console.log(`\n✅ Payslip Sender  →  ${url}\n`);
+if (require.main === module) {
+  app.listen(PORT, () => {
+    const url = `http://localhost:${PORT}`;
+    console.log(`\n✅ Payslip Sender  →  ${url}\n`);
 
-  // Auto-open browser
-  const { execFile } = require('child_process');
-  const platform = process.platform;
-  if (platform === 'win32')      execFile('cmd', ['/c', 'start', url], () => {});
-  else if (platform === 'darwin') execFile('open', [url], () => {});
-  else                            execFile('xdg-open', [url], () => {});
-});
+    // Auto-open browser
+    const { execFile } = require('child_process');
+    const platform = process.platform;
+    if (platform === 'win32')      execFile('cmd', ['/c', 'start', url], () => {});
+    else if (platform === 'darwin') execFile('open', [url], () => {});
+    else                            execFile('xdg-open', [url], () => {});
+  });
+}
+
+module.exports = { parsePayslip, splitTextByPayslip, cleanPayslipText, generatePayslipPDF };
