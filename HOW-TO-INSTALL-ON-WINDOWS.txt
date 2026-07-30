@@ -1,0 +1,130 @@
+================================================================
+   PAYSLIP SENDER - How to Install on Windows
+   Quest Security Services
+================================================================
+
+   Time needed: About 5-10 minutes
+   You need: A Windows PC and an internet connection
+
+   This is the EASY installer. It sets up everything for you
+   automatically - you just double-click one file.
+
+
+----------------------------------------------------------------
+STEP 1: Download the installer
+----------------------------------------------------------------
+
+   1. Open a web browser (Chrome, Edge, etc.)
+
+   2. Go to this address (type it exactly):
+
+      https://raw.githubusercontent.com/andagrounn/payslip-sender/main/Install-PayslipSender.bat
+
+   3. The file "Install-PayslipSender.bat" will download.
+      - If the page shows text instead of downloading,
+        press Ctrl+S and save it to your Desktop.
+      - If the browser warns "this file could harm your
+        computer", choose "Keep".
+
+
+----------------------------------------------------------------
+STEP 2: Run the installer
+----------------------------------------------------------------
+
+   1. Go to your Downloads folder (or Desktop) and find
+      "Install-PayslipSender.bat".
+
+   2. DOUBLE-CLICK it.
+
+   3. If you see a blue box "Windows protected your PC":
+      - Click "More info"
+      - Click "Run anyway"
+
+   4. When Windows asks "Do you want to allow this app to
+      make changes?" click "YES".
+      (It needs this to install the required software.)
+
+   5. A black window opens and does everything automatically:
+      - Installs Node.js and Git (if not already installed)
+      - Downloads the Payslip Sender app to your Desktop
+      - Installs what the app needs
+      - Creates a "Payslip Sender" shortcut on your Desktop
+      - Starts the app in your browser
+
+      This takes a few minutes. Let it finish. Do not close
+      the window while it is working.
+
+   6. If the window ever says "RESTART your computer and run
+      this installer again", do that once, then double-click
+      the installer a second time.
+
+
+----------------------------------------------------------------
+STEP 3: Use the app
+----------------------------------------------------------------
+
+   1. From now on, just DOUBLE-CLICK the "Payslip Sender"
+      shortcut on your Desktop to open the app.
+
+   2. Choose how many payslips are on each PDF page (1, 2, 3 or 4).
+
+   3. Click "Upload PDF" and pick your payslip file.
+
+   4. Review the list:
+      - Each row shows a green "Verified" tag or a red
+        "Check failed" tag.
+      - Red means the app found a problem with that payslip's
+        numbers - it will NOT be emailed unless you tick
+        "Send anyway" after checking it.
+      - Click a name or email to fix it. Untick anyone you do
+        NOT want to email.
+
+   5. Click "SMTP Settings" (top right) and enter:
+
+         Host:        mail.questsec.com
+         Port:        587
+         Username:    (your email address)
+         Password:    (your email password)
+         Sender Name: Quest Security Services
+
+      Click "Test Connection". You only enter this once.
+
+   6. Click "Send Payslips".
+
+
+----------------------------------------------------------------
+UPDATES
+----------------------------------------------------------------
+
+   The app updates itself. Every time you open it, it quietly
+   downloads the latest version. You do not need to reinstall.
+
+
+----------------------------------------------------------------
+IF SOMETHING GOES WRONG
+----------------------------------------------------------------
+
+   "winget was not found"
+   --> Your Windows is out of date. Open Microsoft Store,
+       search "App Installer", and update it. Then run the
+       installer again.
+
+   "cannot find PayslipSender.bat" or app won't start
+   --> Delete the "payslip-sender" folder on your Desktop,
+       then run the installer again. It will download a
+       fresh, clean copy.
+
+   Browser doesn't open by itself
+   --> Open your browser and go to:  http://localhost:3000
+
+   Emails not sending
+   --> Open "SMTP Settings", check the details, and click
+       "Test Connection".
+
+   Still stuck?
+   --> Take a photo of the whole black window (top to bottom)
+       and send it to IT.
+
+================================================================
+   Quest Security Services
+================================================================
