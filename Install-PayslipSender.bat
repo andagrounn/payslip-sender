@@ -79,26 +79,37 @@ where git >nul 2>&1 || (
 )
 
 :: ---- Download or update the app -----------------------------
+set "LAUNCHER=%APPDIR%\PayslipSender.bat"
+
+:: A leftover folder that isn't a healthy git clone (e.g. an interrupted
+:: earlier install) is wiped so we start clean instead of failing to update.
+if exist "%APPDIR%\.git" (
+    git -C "%APPDIR%" rev-parse --is-inside-work-tree >nul 2>&1 || rmdir /s /q "%APPDIR%"
+)
+
 if exist "%APPDIR%\.git" (
     echo [3/5] App already on Desktop - updating to latest...
-    pushd "%APPDIR%"
-    git fetch origin main
-    git reset --hard origin/main
-    popd
+    git -C "%APPDIR%" fetch origin main && git -C "%APPDIR%" reset --hard origin/main
 ) else (
     echo [3/5] Downloading the app to your Desktop...
     git clone "%REPO%" "%APPDIR%"
-    if %errorlevel% neq 0 (
-        echo [!] Download failed. Check your internet connection and try again.
-        echo. & pause & exit /b 1
-    )
+)
+
+:: Safety net: if the app files still aren't there, force one clean re-download.
+if not exist "%LAUNCHER%" (
+    echo [!] App files missing - retrying with a clean download...
+    rmdir /s /q "%APPDIR%" 2>nul
+    git clone "%REPO%" "%APPDIR%"
+)
+if not exist "%LAUNCHER%" (
+    echo [!] Could not download the app. Check your internet connection
+    echo     and run this installer again.
+    echo. & pause & exit /b 1
 )
 
 :: ---- Install dependencies -----------------------------------
 echo [4/5] Installing app dependencies... this can take a few minutes.
-pushd "%APPDIR%"
-call npm install --production
-popd
+call npm install --omit=dev --prefix "%APPDIR%"
 
 :: ---- Create Desktop shortcut --------------------------------
 echo [5/5] Creating Desktop shortcut...
@@ -119,7 +130,13 @@ echo ============================================================
 echo.
 
 :: ---- Launch the app -----------------------------------------
-start "" "%APPDIR%\PayslipSender.bat"
+if exist "%LAUNCHER%" (
+    start "" "%LAUNCHER%"
+) else (
+    echo [!] Could not find the app launcher to start it.
+    echo     Try running this installer again.
+    pause
+)
 
 timeout /t 4 >nul
 exit /b 0
