@@ -16,8 +16,9 @@ where git >nul 2>nul
 if %errorlevel% equ 0 (
     if exist ".git" (
         echo Checking for updates...
-        git pull origin main 2>nul
+        git fetch origin main 2>nul
         if %errorlevel% equ 0 (
+            git reset --hard origin/main 2>nul
             echo Up to date.
         ) else (
             echo Could not check for updates. Continuing...
