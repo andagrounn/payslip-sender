@@ -8,6 +8,7 @@ const path       = require('path');
 const { parse: csvParse }  = require('csv-parse/sync');
 const { createCanvas, ImageData }     = require('canvas');
 const { createWorker }     = require('tesseract.js');
+const { auditPayslip }     = require('./audit');
 
 // ── Polyfill browser globals needed by pdfjs-dist in Node.js ──
 if (typeof globalThis.DOMMatrix === 'undefined') {
@@ -796,6 +797,9 @@ app.post('/api/upload', pdfUpload.single('pdf'), async (req, res) => {
         const fields = parsePayslip(rawText);
         fields.rawText = rawText;
 
+        // 3b. Audit the parsed data against the source text
+        const audit = auditPayslip(fields, rawText);
+
         // 4. Generate clean PDF
         let genBytes;
         try {
@@ -817,6 +821,7 @@ app.post('/api/upload', pdfUpload.single('pdf'), async (req, res) => {
                            : fields.date || '',
           slipNumber:    fields.slipNumber,
           ocrText:       rawText.substring(0, 1200),
+          audit,
           pdfBase64:     Buffer.from(genBytes).toString('base64'),
           sourcePdfBase64: Buffer.from(croppedBytes).toString('base64'),
         });
@@ -868,6 +873,7 @@ app.post('/api/ocr/:id', async (req, res) => {
     p.period        = fields.periodFrom ? `${fields.periodFrom} – ${fields.periodTo}` : p.period;
     p.slipNumber    = fields.slipNumber || p.slipNumber;
     p.pdfBase64     = Buffer.from(newBytes).toString('base64');
+    p.audit         = auditPayslip(fields, rawText);
 
     res.json({
       success:       true,
@@ -876,6 +882,7 @@ app.post('/api/ocr/:id', async (req, res) => {
       detectedEmail: p.detectedEmail,
       idNumber:      p.idNumber,
       period:        p.period,
+      audit:         p.audit,
     });
   } catch (err) {
     res.status(500).json({ error: 'OCR error: ' + err.message });
@@ -921,6 +928,18 @@ app.post('/api/send', async (req, res) => {
     const p = session.payslips[r.pageId];
     if (!p) { results.push({ ...r, status: 'error', message: 'Not found' }); continue; }
 
+    // Gate B: block payslips that failed the audit unless explicitly overridden.
+    // A missing audit (legacy/defensive) is an app bug, not a payslip failure — allow.
+    if (p.audit && !p.audit.ok && r.override !== true) {
+      results.push({
+        pageId: r.pageId, name: r.name || p.detectedName || 'Employee', email: r.email,
+        status: 'blocked',
+        message: (p.audit.fails || []).map(f => f.detail).join('; ') || 'failed audit',
+      });
+      console.warn(`  ⛔ Blocked ${r.email}: failed audit`);
+      continue;
+    }
+
     const name   = r.name   || p.detectedName || 'Employee';
     const period = p.period || '';
     const subject = (emailTemplate?.subject || 'Your Payslip {{period}}')
@@ -956,8 +975,9 @@ app.post('/api/send', async (req, res) => {
 
   res.json({
     results,
-    sent:   results.filter(r => r.status === 'sent').length,
-    failed: results.filter(r => r.status === 'failed').length,
+    sent:    results.filter(r => r.status === 'sent').length,
+    failed:  results.filter(r => r.status === 'failed').length,
+    blocked: results.filter(r => r.status === 'blocked').length,
   });
 });
 

@@ -96,6 +96,7 @@ function initTable(data, filename, total, totalPages, sections) {
       idNumber: p.idNumber      || '',
       email:    p.detectedEmail || '',
       include:  true,
+      override: false,
     };
   });
 
@@ -138,6 +139,27 @@ function getFilteredPayslips() {
   });
 }
 
+// ─── Audit badge ──────────────────────────────────────────────────────────────
+// Renders the per-payslip audit result: green "Verified", amber warnings, or a
+// red "Check failed" with reasons + an explicit off-by-default override checkbox.
+function auditBadgeHtml(p, st) {
+  const a = p.audit;
+  if (!a) return '';
+  if (a.ok) {
+    const warns = a.warns || [];
+    const warnHtml = warns.length
+      ? `<div class="audit-warn" title="${escapeHtml(warns.map(w => w.detail).join('; '))}">⚠️ ${warns.length} warning${warns.length !== 1 ? 's' : ''}</div>`
+      : '';
+    return `<div class="audit-badge ok">✓ Verified</div>${warnHtml}`;
+  }
+  const reasons = (a.fails || []).map(f => escapeHtml(f.detail)).join('<br>');
+  return `
+    <div class="audit-badge fail">⛔ Check failed</div>
+    <div class="audit-reasons">${reasons}</div>
+    <label class="audit-override"><input type="checkbox" class="override-check" ${st.override ? 'checked' : ''} /> Send anyway</label>
+  `;
+}
+
 // ─── Table Render (paginated) ─────────────────────────────────────────────────
 function renderTable() {
   // Persist any unsaved edits in the DOM before re-rendering
@@ -162,6 +184,7 @@ function renderTable() {
       <td><span class="page-badge" title="Page ${p.pageNumber}${p.section ? ', section ' + p.section : ''}">${label}</span></td>
       <td>
         <input type="text" class="name-input" value="${escapeHtml(st.name)}" placeholder="Employee name" />
+        ${auditBadgeHtml(p, st)}
         ${p.ocrText ? `<div class="ocr-snippet">${escapeHtml(p.ocrText.substring(0, 80))}…</div>` : ''}
       </td>
       <td><input type="text" class="id-input" value="${escapeHtml(st.idNumber)}" placeholder="ID / Emp No" /></td>
@@ -201,6 +224,10 @@ function renderTable() {
       updateSelectedCount();
       updateSendBtn();
       syncMasterCheck();
+    });
+    const overrideEl = tr.querySelector('.override-check');
+    if (overrideEl) overrideEl.addEventListener('change', e => {
+      rowState[p.id].override = e.target.checked;
     });
   });
 
@@ -452,7 +479,7 @@ document.addEventListener('click', async e => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         smtp: smtpSettings,
-        recipients: [{ pageId: id, name: st.name, idNumber: st.idNumber, email, include: true }],
+        recipients: [{ pageId: id, name: st.name, idNumber: st.idNumber, email, include: true, override: st.override === true }],
         emailTemplate: {
           subject: emailTemplate.subject || document.getElementById('emailSubject').value,
           body:    emailTemplate.body    || document.getElementById('emailBody').value,
@@ -462,11 +489,16 @@ document.addEventListener('click', async e => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
 
-    const allSent = data.results?.every(r => r.status === 'sent');
-    btn.textContent = allSent ? '✓ Sent' : '✗ Failed';
-    btn.style.background = allSent ? '#065f46' : '#991b1b';
-    showToast(allSent ? `Payslip sent to ${email}` : `Failed: ${data.results?.[0]?.message || 'unknown error'}`,
-              allSent ? 'success' : 'error');
+    const r0 = data.results?.[0];
+    const sent = r0?.status === 'sent';
+    const blocked = r0?.status === 'blocked';
+    btn.textContent = sent ? '✓ Sent' : blocked ? '⛔ Blocked' : '✗ Failed';
+    btn.style.background = sent ? '#065f46' : '#991b1b';
+    showToast(
+      sent ? `Payslip sent to ${email}`
+        : blocked ? `Blocked by audit: ${r0.message}. Tick "Send anyway" to override.`
+        : `Failed: ${r0?.message || 'unknown error'}`,
+      sent ? 'success' : 'error');
   } catch (err) {
     btn.textContent = '✗ Error';
     btn.style.background = '#991b1b';
@@ -528,7 +560,7 @@ sendBtn.addEventListener('click', async () => {
     const st = rowState[p.id];
     if (!st.include) return;
     if (!st.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(st.email)) { invalid++; return; }
-    recipients.push({ pageId: p.id, name: st.name, idNumber: st.idNumber, email: st.email, include: true });
+    recipients.push({ pageId: p.id, name: st.name, idNumber: st.idNumber, email: st.email, include: true, override: st.override === true });
   });
 
   if (invalid > 0) {
@@ -578,6 +610,11 @@ function renderResults(data) {
       <span class="stat-num">${data.failed}</span>
       <span class="stat-label">Failed</span>
     </div>
+    ${data.blocked > 0 ? `
+    <div class="result-stat danger">
+      <span class="stat-num">${data.blocked}</span>
+      <span class="stat-label">Blocked (audit)</span>
+    </div>` : ''}
   `;
 
   document.getElementById('resultsList').innerHTML = data.results.map(r => `

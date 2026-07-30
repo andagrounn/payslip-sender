@@ -60,8 +60,15 @@ broken audit blocks the send rather than silently passing.
 
 Field values are formatted strings with commas and 2 decimals (e.g. `"77,657.96"`).
 A helper `money(str) -> number|null` strips commas, `parseFloat`s, and returns `null` for
-non-numeric/empty. Comparisons use a **±0.01 (one cent)** tolerance:
-`eq(a, b) = Math.abs(a - b) <= 0.01`.
+non-numeric/empty. Comparisons are done in **integer cents** to avoid floating-point
+accumulation error (e.g. `2329.74 + 1553.16 + 3219.24 = 7102.139999999999`, which a naive
+`Math.abs(a-b) <= 0.01` wrongly rejects). Tolerance is **5 cents**
+(`TOLERANCE_CENTS = 5`): `eq(a, b) = Math.abs(round(a*100) - round(b*100)) <= 5`.
+
+Rationale for 5¢: measured against the real Period-14 PDF (397 payslips), genuine parse
+errors are off by *dollars*, while accumulated per-line rounding drifts 1–2¢. A 5¢
+tolerance clears the rounding noise (84 → 17 flagged) without letting a single real error
+through.
 
 ### Checks
 
@@ -69,9 +76,9 @@ non-numeric/empty. Comparisons use a **±0.01 (one cent)** tolerance:
 |---|------|------|--------|
 | 1 | `required-fields` | `fields.name` non-empty AND `fields.id` non-empty | **fail** if either missing |
 | 2 | `has-payments` | `fields.payments.length >= 1` | **fail** if zero |
-| 3 | `gross-reconciles` | `sum(payments[].amount)` eq `gross` | **fail** on mismatch; if `gross` is empty/null → **fail** `detail: 'no gross detected'` |
-| 4 | `deductions-reconciles` | `sum(deductions[].amount)` eq `totalDeductions` | **fail** on mismatch. Special case: if there are zero deductions AND `totalDeductions` is empty → **pass** (`detail: 'no deductions'`) |
-| 5 | `net-reconciles` | `gross - totalDeductions` eq `net` | **fail** on mismatch; if `net` empty → **fail** `detail: 'no net detected'` |
+| 3 | `gross-reconciles` | `sum(payments[].amount)` eq `gross` (±5¢) | **fail** on mismatch; if `gross` is empty/null → **fail** `detail: 'no gross detected'` |
+| 4 | `deductions-reconciles` | `sum(deductions[].amount)` eq `totalDeductions` (±5¢) | **fail** on mismatch. Special case: if there are zero deductions AND `totalDeductions` is empty → **pass** (`detail: 'no deductions'`) |
+| 5 | `net-reconciles` | `gross - totalDeductions` eq `net` (±5¢) | **fail** on mismatch; if `net` empty → **fail** `detail: 'no net detected'` |
 | 6 | `no-dropped-amounts` | every money token `\d{1,3}(,\d{3})*\.\d{2}` in `rawText` with value `> 1.00` appears in the captured field set | **warn** per missing amount (never fail — inherently noisy) |
 
 Check 6's "captured field set" = the multiset of all money values present in

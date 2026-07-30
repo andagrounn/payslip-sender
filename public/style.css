@@ -283,6 +283,53 @@ tr.excluded { opacity: .5; }
   text-overflow: ellipsis;
 }
 
+/* ── Audit badges ── */
+.audit-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-top: 4px;
+}
+.audit-badge.ok {
+  color: var(--success);
+  background: var(--success-light);
+  border: 1px solid var(--success);
+}
+.audit-badge.fail {
+  color: var(--danger);
+  background: var(--danger-light);
+  border: 1px solid var(--danger);
+}
+.audit-warn {
+  font-size: 11px;
+  color: #b45309;
+  margin-top: 3px;
+}
+.audit-reasons {
+  font-size: 11px;
+  color: var(--danger);
+  margin-top: 3px;
+  max-width: 280px;
+  line-height: 1.35;
+}
+.audit-override {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger);
+  margin-top: 4px;
+  cursor: pointer;
+}
+.audit-override input { cursor: pointer; }
+
+/* Highlight the whole row when a payslip failed the audit */
+tr:has(.audit-badge.fail) { background: var(--danger-light); }
+.result-status.blocked { background: var(--danger); }
+
 .page-badge {
   display: inline-flex;
   align-items: center;
