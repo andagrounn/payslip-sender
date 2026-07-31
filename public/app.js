@@ -10,14 +10,17 @@ let searchQuery   = '';
 let smtpSettings  = JSON.parse(localStorage.getItem('smtpSettings')  || '{}');
 let emailTemplate = JSON.parse(localStorage.getItem('emailTemplate') || '{}');
 
-// ─── Quest Security mail server ────────────────────────────────────────────────
-// Use the hostname, never a raw IP: the mail server's IP has changed before
-// (159.198.67.228 → 192.169.174.139) and hard-coded IPs cause ETIMEDOUT on send.
-const QUEST_SMTP_HOST = 'mail.questsec.com';
-// Stale IPs / hosts that must be auto-corrected to QUEST_SMTP_HOST on load.
-const QUEST_STALE_HOSTS = ['159.198.67.228', '192.169.174.139'];
+// ─── QSS Guards mail server ────────────────────────────────────────────────────
+// Payslips are sent from the @qssguards.com mailbox. The SMTP host is the mail
+// server mail.qssguards.com (Exim on server1.qssguards.com), NOT the qssguards.com
+// website IP (159.198.67.228 is Namecheap web hosting and does not run SMTP —
+// pointing at it causes "connect ETIMEDOUT 159.198.67.228:587" on send).
+const QUEST_SMTP_HOST = 'mail.qssguards.com';
+// Stale IPs / wrong hosts that must be auto-corrected to QUEST_SMTP_HOST on load.
+// Includes the qssguards.com web IP and an earlier bad mail.questsec.com value.
+const QUEST_STALE_HOSTS = ['159.198.67.228', '192.169.174.139', 'mail.questsec.com'];
 
-// One-time migration: rewrite any stale Quest mail host saved in a prior version
+// One-time migration: rewrite any stale mail host saved in a prior version
 // so existing installs self-heal on auto-update instead of failing to send.
 (function migrateQuestSmtpHost() {
   if (smtpSettings.host && QUEST_STALE_HOSTS.includes(smtpSettings.host.trim())) {
@@ -26,7 +29,7 @@ const QUEST_STALE_HOSTS = ['159.198.67.228', '192.169.174.139'];
     smtpSettings.port = smtpSettings.port || 587;
     localStorage.setItem('smtpSettings', JSON.stringify(smtpSettings));
   }
-  // Fresh install with no host yet: prefill the Quest server so send works out of the box.
+  // Fresh install with no host yet: prefill the mail server so send works out of the box.
   if (!smtpSettings.host) smtpSettings.host = QUEST_SMTP_HOST;
 })();
 
@@ -673,7 +676,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
 
 // ─── SMTP Modal ───────────────────────────────────────────────────────────────
 const PRESETS = {
-  quest:    { host: QUEST_SMTP_HOST,      port: 587, note: 'Quest Security mail server. Username & password are your @questsec.com mailbox.' },
+  quest:    { host: QUEST_SMTP_HOST,      port: 587, note: 'QSS Guards mail server. Username & password are your @qssguards.com mailbox.' },
   gmail:    { host: 'smtp.gmail.com',     port: 587, note: 'Use an App Password (not your account password).' },
   outlook:  { host: 'smtp.office365.com', port: 587, note: '' },
   yahoo:    { host: 'smtp.mail.yahoo.com',port: 587, note: 'Use an App Password from Yahoo security settings.' },
