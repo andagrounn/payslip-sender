@@ -10,6 +10,26 @@ let searchQuery   = '';
 let smtpSettings  = JSON.parse(localStorage.getItem('smtpSettings')  || '{}');
 let emailTemplate = JSON.parse(localStorage.getItem('emailTemplate') || '{}');
 
+// ─── Quest Security mail server ────────────────────────────────────────────────
+// Use the hostname, never a raw IP: the mail server's IP has changed before
+// (159.198.67.228 → 192.169.174.139) and hard-coded IPs cause ETIMEDOUT on send.
+const QUEST_SMTP_HOST = 'mail.questsec.com';
+// Stale IPs / hosts that must be auto-corrected to QUEST_SMTP_HOST on load.
+const QUEST_STALE_HOSTS = ['159.198.67.228', '192.169.174.139'];
+
+// One-time migration: rewrite any stale Quest mail host saved in a prior version
+// so existing installs self-heal on auto-update instead of failing to send.
+(function migrateQuestSmtpHost() {
+  if (smtpSettings.host && QUEST_STALE_HOSTS.includes(smtpSettings.host.trim())) {
+    console.warn(`Migrating stale SMTP host ${smtpSettings.host} → ${QUEST_SMTP_HOST}`);
+    smtpSettings.host = QUEST_SMTP_HOST;
+    smtpSettings.port = smtpSettings.port || 587;
+    localStorage.setItem('smtpSettings', JSON.stringify(smtpSettings));
+  }
+  // Fresh install with no host yet: prefill the Quest server so send works out of the box.
+  if (!smtpSettings.host) smtpSettings.host = QUEST_SMTP_HOST;
+})();
+
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 const dropZone       = document.getElementById('dropZone');
 const pdfInput       = document.getElementById('pdfInput');
@@ -653,6 +673,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
 
 // ─── SMTP Modal ───────────────────────────────────────────────────────────────
 const PRESETS = {
+  quest:    { host: QUEST_SMTP_HOST,      port: 587, note: 'Quest Security mail server. Username & password are your @questsec.com mailbox.' },
   gmail:    { host: 'smtp.gmail.com',     port: 587, note: 'Use an App Password (not your account password).' },
   outlook:  { host: 'smtp.office365.com', port: 587, note: '' },
   yahoo:    { host: 'smtp.mail.yahoo.com',port: 587, note: 'Use an App Password from Yahoo security settings.' },
@@ -665,7 +686,7 @@ document.getElementById('smtpClose').addEventListener('click', () => smtpModal.c
 smtpModal.addEventListener('click', e => { if (e.target === smtpModal) smtpModal.classList.add('hidden'); });
 
 function openSmtpModal() {
-  document.getElementById('smtpHost').value       = smtpSettings.host       || '';
+  document.getElementById('smtpHost').value       = smtpSettings.host       || QUEST_SMTP_HOST;
   document.getElementById('smtpPort').value       = smtpSettings.port       || 587;
   document.getElementById('smtpUser').value       = smtpSettings.user       || '';
   document.getElementById('smtpPass').value       = smtpSettings.pass       || '';
